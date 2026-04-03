@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
+.pytest_cache/
+.mypy_cache/
+runs/
+data/raw/
+datasets/

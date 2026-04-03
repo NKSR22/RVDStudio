@@ -1,0 +1,35 @@
+name: smoke
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile sources
+        run: python -m compileall app scripts
+
+      - name: Check CLI help
+        run: |
+          python scripts/setup_venv.py --help
+          python scripts/export_yolo_dataset.py --help
+          python scripts/train.py --help
+          python scripts/evaluate.py --help
+          python scripts/test_model.py --help
+
