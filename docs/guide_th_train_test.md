@@ -30,6 +30,7 @@ python -m app.gui
 
 - เปิดภาพที่เก็บไว้ตาม session
 - ดูผล detect เดิม
+- ลากเมาส์บนภาพเพื่อวาด `bbox` ใหม่ได้โดยตรง
 - เพิ่ม / ลบ / แก้ไข `label`, `confidence`, `bbox`
 - บันทึกกลับเป็น `corrected_detections` ในไฟล์ metadata
 

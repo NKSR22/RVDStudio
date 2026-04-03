@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 import cv2
-from PySide6.QtCore import QTimer, Qt, QUrl
+from PySide6.QtCore import QPoint, QTimer, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from .config import AppPaths, DEFAULT_DECISIONS, sanitize_session_name
+from .config import DEFAULT_CLASSES
 from .dataset import (
     list_capture_meta,
     list_sessions,
@@ -95,6 +96,111 @@ def _detection_from_dict(item: dict) -> Detection:
         bbox=tuple(int(v) for v in bbox),
         decision_hint=decision_hint,
     )
+
+
+class ReviewImageLabel(QLabel):
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.source_frame = None
+        self.detections: list[Detection] = []
+        self.draft_bbox: tuple[int, int, int, int] | None = None
+        self.drawing_start: tuple[int, int] | None = None
+        self.on_box_created = None
+        self.setMouseTracking(True)
+
+    def set_box_created_callback(self, callback) -> None:
+        self.on_box_created = callback
+
+    def set_review_content(self, frame, detections: list[Detection], draft_bbox: tuple[int, int, int, int] | None = None) -> None:
+        self.source_frame = None if frame is None else frame.copy()
+        self.detections = detections
+        self.draft_bbox = draft_bbox
+        self._redraw()
+
+    def _redraw(self) -> None:
+        if self.source_frame is None:
+            self.setText("Review preview")
+            self.setPixmap(QPixmap())
+            return
+
+        display = draw_detections(self.source_frame, self.detections)
+        if self.draft_bbox is not None:
+            x1, y1, x2, y2 = self.draft_bbox
+            cv2.rectangle(display, (x1, y1), (x2, y2), (59, 130, 246), 2)
+
+        rgb = cv2.cvtColor(display, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb.shape
+        image = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888)
+        pixmap = QPixmap.fromImage(image).scaled(
+            self.size(),
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
+        self.setPixmap(pixmap)
+
+    def _widget_to_image(self, pos: QPoint) -> tuple[int, int] | None:
+        if self.source_frame is None:
+            return None
+
+        img_h, img_w = self.source_frame.shape[:2]
+        label_w = max(1, self.width())
+        label_h = max(1, self.height())
+        scale = min(label_w / img_w, label_h / img_h)
+        draw_w = img_w * scale
+        draw_h = img_h * scale
+        offset_x = (label_w - draw_w) / 2.0
+        offset_y = (label_h - draw_h) / 2.0
+
+        px = pos.x()
+        py = pos.y()
+        if px < offset_x or py < offset_y or px > offset_x + draw_w or py > offset_y + draw_h:
+            return None
+
+        img_x = int((px - offset_x) / scale)
+        img_y = int((py - offset_y) / scale)
+        img_x = max(0, min(img_w - 1, img_x))
+        img_y = max(0, min(img_h - 1, img_y))
+        return (img_x, img_y)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        self._redraw()
+        super().resizeEvent(event)
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        if event.button() == Qt.LeftButton:
+            point = self._widget_to_image(event.position().toPoint())
+            if point is not None:
+                self.drawing_start = point
+                self.draft_bbox = None
+                self._redraw()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802
+        if self.drawing_start is not None:
+            point = self._widget_to_image(event.position().toPoint())
+            if point is not None:
+                x1, y1 = self.drawing_start
+                x2, y2 = point
+                self.draft_bbox = (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+                self._redraw()
+                return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        if event.button() == Qt.LeftButton and self.drawing_start is not None:
+            point = self._widget_to_image(event.position().toPoint())
+            if point is not None:
+                x1, y1 = self.drawing_start
+                x2, y2 = point
+                bbox = (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+                if (bbox[2] - bbox[0]) >= 4 and (bbox[3] - bbox[1]) >= 4 and self.on_box_created is not None:
+                    self.on_box_created(bbox)
+            self.drawing_start = None
+            self.draft_bbox = None
+            self._redraw()
+            return
+        super().mouseReleaseEvent(event)
 
 
 class MainWindow(QMainWindow):
@@ -171,10 +277,11 @@ class MainWindow(QMainWindow):
         left.addWidget(self._build_review_meta_box())
         left.addStretch(1)
 
-        self.review_image_label = QLabel("Review preview")
+        self.review_image_label = ReviewImageLabel()
         self.review_image_label.setMinimumSize(960, 540)
         self.review_image_label.setAlignment(Qt.AlignCenter)
         self.review_image_label.setStyleSheet("background-color: #111827; color: #e5e7eb;")
+        self.review_image_label.set_box_created_callback(self._handle_review_box_created)
 
         center = QVBoxLayout()
         center.addWidget(self.review_image_label, 1)
@@ -306,11 +413,14 @@ class MainWindow(QMainWindow):
 
         self.review_scene_tag_combo = QComboBox()
         self.review_scene_tag_combo.addItems(DEFAULT_DECISIONS)
+        self.review_new_label_combo = QComboBox()
+        self.review_new_label_combo.addItems(DEFAULT_CLASSES)
         self.review_note_input = QTextEdit()
         self.review_note_input.setPlaceholderText("Notes for corrected sample")
         self.review_status_label = QLabel("No capture loaded")
 
         form.addRow("Scene Tag", self.review_scene_tag_combo)
+        form.addRow("Draw Label", self.review_new_label_combo)
         form.addRow("Notes", self.review_note_input)
         form.addRow("Status", self.review_status_label)
         return box
@@ -626,14 +736,24 @@ class MainWindow(QMainWindow):
         return detections
 
     def _refresh_review_preview(self) -> None:
-        if self.review_frame is None:
-            return
         detections = [_detection_from_dict(item) for item in self._review_table_detections()]
-        display = draw_detections(self.review_frame, detections)
-        self.review_image_label.setPixmap(self._to_pixmap(display, self.review_image_label))
+        self.review_image_label.set_review_content(self.review_frame, detections)
 
     def _review_table_changed(self, _item=None) -> None:
         self._refresh_review_preview()
+
+    def _handle_review_box_created(self, bbox: tuple[int, int, int, int]) -> None:
+        label = self.review_new_label_combo.currentText().strip() or "obstacle"
+        self._append_review_row(
+            {
+                "label": label,
+                "confidence": 1.0,
+                "bbox": [bbox[0], bbox[1], bbox[2], bbox[3]],
+                "decision_hint": "stop_wait" if label == "person" else "bypass_candidate",
+            }
+        )
+        self._refresh_review_preview()
+        self._set_review_status("Added box from mouse drag")
 
     def add_review_row(self) -> None:
         self._append_review_row({"label": "obstacle", "confidence": 1.0, "bbox": [10, 10, 100, 100]})

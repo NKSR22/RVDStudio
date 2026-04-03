@@ -139,7 +139,12 @@ python scripts/test_model.py --model runs/train/robot_obstacle/weights/best.pt -
 - [Collection Guide](/Users/nakarinsripanya/DEV/OpenCV/docs/data_collection_guide.md)
 - [Workflow Guide](/Users/nakarinsripanya/DEV/OpenCV/docs/workflow.md)
 - [Deployment Guide](/Users/nakarinsripanya/DEV/OpenCV/docs/deployment_guide.md)
+- [Release Checklist](/Users/nakarinsripanya/DEV/OpenCV/docs/release_checklist.md)
 - [คู่มือเก็บข้อมูล (TH)](/Users/nakarinsripanya/DEV/OpenCV/docs/guide_th_collection.md)
 - [คู่มือเทรนและทดสอบ (TH)](/Users/nakarinsripanya/DEV/OpenCV/docs/guide_th_train_test.md)
 - [คู่มือการติดตั้งและใช้งานข้ามระบบ (TH)](/Users/nakarinsripanya/DEV/OpenCV/docs/guide_th_deployment.md)
 - [Contributing](/Users/nakarinsripanya/DEV/OpenCV/CONTRIBUTING.md)
+
+## License
+
+This project is released under the `MIT` license.
