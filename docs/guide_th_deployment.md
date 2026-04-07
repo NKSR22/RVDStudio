@@ -114,6 +114,7 @@ python -m app.gui
 ### ข้อควรระวัง
 
 - ถ้า PySide6 หรือ OpenCV เปิดกล้องไม่ได้ อาจต้องติดตั้ง `python3-venv`, `libgl1`, `v4l-utils`
+- ถ้า GUI ไม่ขึ้นหรือเจอ error แนว `Could not load the Qt platform plugin "xcb"` ให้รัน `python scripts/diagnose_gui.py` แล้วติดตั้งแพ็กเกจ Ubuntu ที่สคริปต์แนะนำ (ที่เจอบ่อย: `libxcb-cursor0`, `libxcb-xinerama0`, `libxkbcommon-x11-0`, `libglib2.0-0`, `libgl1`)
 - ตรวจสอบกล้องด้วย `ls /dev/video*`
 - เช็กสิทธิ์การเข้าถึงอุปกรณ์กล้องของ user
 
@@ -132,4 +133,3 @@ python scripts/test_model.py --model runs/train/robot_obstacle/weights/best.pt -
 - ทดสอบกับกล้องจริงจากตำแหน่งจริงให้เรียบร้อย
 - เมื่อผลแม่นพอแล้วค่อย export/convert ไปใช้บน Pi
 - ระหว่างเก็บข้อมูลกับ deploy ต้องรักษาตำแหน่งกล้องให้ใกล้เคียงกัน
-

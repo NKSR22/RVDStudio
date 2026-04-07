@@ -90,6 +90,7 @@ Put your YOLO model files (`.pt` / `.onnx`) into `models/` to show up in the GUI
 - `PySide6 + OpenCV + Ultralytics` work across `Windows`, `macOS`, and `Ubuntu`
 - camera index numbers may differ by OS, so use the GUI `Camera` selector or press `Refresh`
 - the current desktop app is intended for data collection and model validation on a laptop/PC before deployment to Raspberry Pi
+- on Ubuntu, if the GUI does not appear (Qt `xcb` plugin issues), run `python scripts/diagnose_gui.py` and install the suggested OS packages
 
 ### 3. Train a model
 

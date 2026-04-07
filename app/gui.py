@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
+import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -812,7 +814,34 @@ class MainWindow(QMainWindow):
 
 
 def main() -> int:
-    app = QApplication(sys.argv)
+    parser = argparse.ArgumentParser(add_help=True, description="Robot Vision Data Studio GUI")
+    parser.add_argument(
+        "--platform",
+        choices=["xcb", "wayland", "offscreen", "minimal"],
+        default=None,
+        help="Override Qt platform plugin (sets QT_QPA_PLATFORM).",
+    )
+    args, qt_args = parser.parse_known_args(sys.argv[1:])
+
+    if args.platform and not os.environ.get("QT_QPA_PLATFORM"):
+        os.environ["QT_QPA_PLATFORM"] = args.platform
+
+    if sys.platform.startswith("linux"):
+        has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+        platform = os.environ.get("QT_QPA_PLATFORM")
+        if not has_display and platform not in {"offscreen", "minimal"}:
+            sys.stderr.write(
+                "No graphical session detected (DISPLAY/WAYLAND_DISPLAY is empty).\n"
+                "If you are on a headless Ubuntu server/SSH session, the GUI cannot open.\n"
+                "Try one of:\n"
+                "- run on a desktop session\n"
+                "- use X11 forwarding (ssh -X) and ensure DISPLAY is set\n"
+                "- run diagnostics: python scripts/diagnose_gui.py\n"
+                "- for CI/headless only: QT_QPA_PLATFORM=offscreen python -m app.gui\n"
+            )
+            return 2
+
+    app = QApplication([sys.argv[0], *qt_args])
     window = MainWindow()
     window.show()
     return app.exec()

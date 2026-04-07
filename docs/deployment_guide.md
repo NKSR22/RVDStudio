@@ -114,6 +114,7 @@ python -m app.gui
 ### Notes
 
 - if PySide6 or OpenCV camera access fails, install common packages such as `python3-venv`, `libgl1`, and `v4l-utils`
+- if the GUI does not appear or you see `Could not load the Qt platform plugin "xcb"`, run `python scripts/diagnose_gui.py` and install the suggested Ubuntu packages (common fixes include `libxcb-cursor0`, `libxcb-xinerama0`, `libxkbcommon-x11-0`, `libglib2.0-0`, `libgl1`)
 - check webcam detection with `ls /dev/video*`
 - make sure your user has permission to access the camera device
 
@@ -139,4 +140,3 @@ python scripts/test_model.py --model runs/train/robot_obstacle/weights/best.pt -
 - keep raw captures under `data/raw/`
 - keep reusable weights under `models/`
 - keep trained outputs under `runs/`
-
