@@ -29,7 +29,7 @@
 ### ติดตั้ง
 
 ```powershell
-cd C:\path\to\OpenCV
+cd C:\path\to\RVDStudio
 py -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -49,6 +49,13 @@ python scripts/setup_venv.py
 python -m app.gui
 ```
 
+ตอนนี้ GUI มีส่วนหลักดังนี้:
+
+- `Live Capture`
+- `Review / Label`
+- `Train / Evaluate`
+- `Help > About`
+
 ### ข้อควรระวัง
 
 - ถ้า PowerShell ไม่ยอม activate ให้ใช้ `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
@@ -60,7 +67,7 @@ python -m app.gui
 ### ติดตั้ง
 
 ```bash
-cd /path/to/OpenCV
+cd /path/to/RVDStudio
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -80,6 +87,13 @@ source .venv/bin/activate
 python -m app.gui
 ```
 
+ตอนนี้ GUI มีส่วนหลักดังนี้:
+
+- `Live Capture`
+- `Review / Label`
+- `Train / Evaluate`
+- `Help > About`
+
 ### ข้อควรระวัง
 
 - อนุญาตสิทธิ์กล้องให้ Terminal หรือ IDE ใน `System Settings > Privacy & Security > Camera`
@@ -91,7 +105,7 @@ python -m app.gui
 ### ติดตั้ง
 
 ```bash
-cd /path/to/OpenCV
+cd /path/to/RVDStudio
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -111,6 +125,13 @@ source .venv/bin/activate
 python -m app.gui
 ```
 
+ตอนนี้ GUI มีส่วนหลักดังนี้:
+
+- `Live Capture`
+- `Review / Label`
+- `Train / Evaluate`
+- `Help > About`
+
 ### ข้อควรระวัง
 
 - ถ้า PySide6 หรือ OpenCV เปิดกล้องไม่ได้ อาจต้องติดตั้ง `python3-venv`, `libgl1`, `v4l-utils`
@@ -119,6 +140,8 @@ python -m app.gui
 - เช็กสิทธิ์การเข้าถึงอุปกรณ์กล้องของ user
 
 ## คำสั่งหลักของ workflow
+
+workflow นี้ทำได้จากแท็บ `Train / Evaluate` ใน GUI หรือจะรันผ่าน terminal ก็ได้:
 
 ```bash
 python scripts/export_yolo_dataset.py --raw data/raw --out datasets/robot_obstacle --clear-out

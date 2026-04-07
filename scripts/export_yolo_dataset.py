@@ -97,8 +97,12 @@ def _map_class(label: str) -> int | None:
 
 
 def _export_detections(meta: dict) -> list[dict]:
-    if "corrected_detections" in meta and isinstance(meta.get("corrected_detections"), list):
-        return meta.get("corrected_detections") or []
+    corrected = meta.get("corrected_detections")
+    if isinstance(corrected, list):
+        # Fresh captures historically stored an empty corrected_detections list before any review happened.
+        # Only prefer corrected labels when a review timestamp exists or when the list actually contains boxes.
+        if meta.get("corrected_at") or corrected:
+            return corrected
     detections = meta.get("detections")
     if isinstance(detections, list):
         return detections

@@ -29,7 +29,7 @@ Use Raspberry Pi later for:
 ### Setup
 
 ```powershell
-cd C:\path\to\OpenCV
+cd C:\path\to\RVDStudio
 py -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -49,6 +49,13 @@ python scripts/setup_venv.py
 python -m app.gui
 ```
 
+The GUI now includes:
+
+- `Live Capture`
+- `Review / Label`
+- `Train / Evaluate`
+- `Help > About`
+
 ### Notes
 
 - if PowerShell blocks activation, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
@@ -60,7 +67,7 @@ python -m app.gui
 ### Setup
 
 ```bash
-cd /path/to/OpenCV
+cd /path/to/RVDStudio
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -80,6 +87,13 @@ source .venv/bin/activate
 python -m app.gui
 ```
 
+The GUI now includes:
+
+- `Live Capture`
+- `Review / Label`
+- `Train / Evaluate`
+- `Help > About`
+
 ### Notes
 
 - allow camera access for Terminal or your IDE in `System Settings > Privacy & Security > Camera`
@@ -91,7 +105,7 @@ python -m app.gui
 ### Setup
 
 ```bash
-cd /path/to/OpenCV
+cd /path/to/RVDStudio
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -111,6 +125,13 @@ source .venv/bin/activate
 python -m app.gui
 ```
 
+The GUI now includes:
+
+- `Live Capture`
+- `Review / Label`
+- `Train / Evaluate`
+- `Help > About`
+
 ### Notes
 
 - if PySide6 or OpenCV camera access fails, install common packages such as `python3-venv`, `libgl1`, and `v4l-utils`
@@ -119,6 +140,8 @@ python -m app.gui
 - make sure your user has permission to access the camera device
 
 ## Training Workflow
+
+You can run this workflow either from the `Train / Evaluate` tab or from the terminal:
 
 ```bash
 python scripts/export_yolo_dataset.py --raw data/raw --out datasets/robot_obstacle --clear-out

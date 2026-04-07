@@ -2,15 +2,21 @@
 
 Desktop toolkit for collecting robot-view webcam data, reviewing labels, training YOLO models, and validating obstacle-detection workflows before Raspberry Pi deployment.
 
+Version: `1.0`
+
 **Developer**
 
 - `Nakarin Sripanya`
+- `Electrical Engineering Program`
+- `Faculty of Industry and Technology`
+- `Rajamangala University of Technology Isan`
 - GitHub: `https://github.com/NKSR22/RVDStudio`
 
 ## Features
 
 - desktop GUI for live webcam testing and field data capture
 - built-in `Review / Label` tab for correcting detections before export
+- built-in `Train / Evaluate` tab for dataset export, training kickoff, and live run logs
 - YOLO dataset export, training, evaluation, and test scripts
 - cross-platform usage on `Windows`, `macOS`, and `Ubuntu`
 
@@ -85,6 +91,14 @@ python -m app.gui
 
 Put your YOLO model files (`.pt` / `.onnx`) into `models/` to show up in the GUI dropdown.
 
+From the GUI you can now:
+
+- capture and review samples
+- export a YOLO dataset from the `Train / Evaluate` tab
+- start model training from the same tab
+- monitor export and training logs inside the app
+- open `Help > About` to view version and developer information
+
 ## Platform Notes
 
 - `PySide6 + OpenCV + Ultralytics` work across `Windows`, `macOS`, and `Ubuntu`
@@ -130,21 +144,21 @@ python scripts/test_model.py --model runs/train/robot_obstacle/weights/best.pt -
 1. Mount the real webcam in the robot position.
 2. Use the GUI to record field sessions and capture important frames.
 3. Use the GUI `Review / Label` tab to correct labels and metadata.
-4. Export the final dataset in YOLO format.
-5. Train a better model.
-6. Evaluate it with validation data.
+4. Open `Train / Evaluate` and export the final dataset in YOLO format.
+5. Start training from the same tab and monitor the run log.
+6. Evaluate the trained model.
 7. Test it again with live webcam or recorded video before moving to Raspberry Pi.
 
 ## Documentation
 
-- [Collection Guide](/Users/nakarinsripanya/DEV/OpenCV/docs/data_collection_guide.md)
-- [Workflow Guide](/Users/nakarinsripanya/DEV/OpenCV/docs/workflow.md)
-- [Deployment Guide](/Users/nakarinsripanya/DEV/OpenCV/docs/deployment_guide.md)
-- [Release Checklist](/Users/nakarinsripanya/DEV/OpenCV/docs/release_checklist.md)
-- [คู่มือเก็บข้อมูล (TH)](/Users/nakarinsripanya/DEV/OpenCV/docs/guide_th_collection.md)
-- [คู่มือเทรนและทดสอบ (TH)](/Users/nakarinsripanya/DEV/OpenCV/docs/guide_th_train_test.md)
-- [คู่มือการติดตั้งและใช้งานข้ามระบบ (TH)](/Users/nakarinsripanya/DEV/OpenCV/docs/guide_th_deployment.md)
-- [Contributing](/Users/nakarinsripanya/DEV/OpenCV/CONTRIBUTING.md)
+- [Collection Guide](docs/data_collection_guide.md)
+- [Workflow Guide](docs/workflow.md)
+- [Deployment Guide](docs/deployment_guide.md)
+- [Release Checklist](docs/release_checklist.md)
+- [คู่มือเก็บข้อมูล (TH)](docs/guide_th_collection.md)
+- [คู่มือเทรนและทดสอบ (TH)](docs/guide_th_train_test.md)
+- [คู่มือการติดตั้งและใช้งานข้ามระบบ (TH)](docs/guide_th_deployment.md)
+- [Contributing](CONTRIBUTING.md)
 
 ## License
 

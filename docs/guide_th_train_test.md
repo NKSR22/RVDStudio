@@ -11,7 +11,7 @@
 `macOS / Ubuntu`
 
 ```bash
-cd /Users/nakarinsripanya/DEV/OpenCV
+cd /path/to/RVDStudio
 source .venv/bin/activate
 python -m app.gui
 ```
@@ -19,7 +19,7 @@ python -m app.gui
 `Windows PowerShell`
 
 ```bash
-cd /Users/nakarinsripanya/DEV/OpenCV
+cd /path/to/RVDStudio
 .venv\Scripts\Activate.ps1
 python -m app.gui
 ```
@@ -36,7 +36,7 @@ python -m app.gui
 
 ## 2) Export เป็นชุดข้อมูล YOLO
 
-เราเตรียมสคริปต์ `scripts/export_yolo_dataset.py` ไว้แล้ว เพื่อแปลง `data/raw/` ไปเป็น YOLO dataset ใน `datasets/robot_obstacle/`
+คุณสามารถใช้แท็บ `Train / Evaluate` ใน GUI เพื่อ export dataset ได้โดยตรง หรือจะใช้สคริปต์ `scripts/export_yolo_dataset.py` เพื่อแปลง `data/raw/` ไปเป็น YOLO dataset ใน `datasets/robot_obstacle/` ก็ได้
 
 รัน (แนะนำเริ่มต้น):
 
@@ -87,7 +87,7 @@ python scripts/export_yolo_dataset.py --min-conf 0.35
 
 ## 3) เทรนโมเดล
 
-เทรนด้วยสคริปต์ที่เตรียมไว้:
+คุณสามารถเริ่มเทรนจากแท็บ `Train / Evaluate` ใน GUI หรือใช้สคริปต์ที่เตรียมไว้:
 
 `macOS / Ubuntu`
 

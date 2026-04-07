@@ -24,7 +24,7 @@ class CaptureRecord:
     frame_width: int
     frame_height: int
     detections: list[dict[str, Any]] = field(default_factory=list)
-    corrected_detections: list[dict[str, Any]] = field(default_factory=list)
+    corrected_detections: list[dict[str, Any]] | None = None
 
 
 def utc_stamp() -> str:

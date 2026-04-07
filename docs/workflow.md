@@ -5,9 +5,9 @@
 1. Collect real webcam data with the GUI.
 2. Review captures in the GUI `Review / Label` tab and correct labels.
 3. Clean bad samples and refine YOLO labels.
-4. Organize the dataset into train, val, and test splits.
+4. Open `Train / Evaluate` to export the dataset into train, val, and test splits.
 5. Update `configs/dataset.yaml` if the dataset path changes.
-6. Run training with `scripts/train.py`.
+6. Start training from the GUI or run `scripts/train.py` manually.
 7. Run validation with `scripts/evaluate.py`.
 8. Run live or offline inference with `scripts/test_model.py`.
 9. Export and optimize the best model for Raspberry Pi in a later step.
@@ -27,6 +27,15 @@ datasets/robot_obstacle/
     val/
     test/
 ```
+
+## In-App Training Flow
+
+The `Train / Evaluate` tab currently supports:
+
+- exporting raw captures into a YOLO dataset
+- setting the base model, epochs, image size, batch size, and run name
+- starting training from the desktop app
+- reading export and training logs inside the GUI
 
 ## Training Example
 

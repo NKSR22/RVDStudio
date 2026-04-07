@@ -7,13 +7,18 @@ import sys
 from pathlib import Path
 
 import cv2
-from PySide6.QtCore import QPoint, QTimer, Qt, QUrl
+from PySide6.QtCore import QPoint, QProcess, QTimer, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QImage, QPixmap
 from PySide6.QtWidgets import (
+    QCheckBox,
     QApplication,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
@@ -22,7 +27,10 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QSlider,
+    QSpinBox,
+    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -215,90 +223,241 @@ class MainWindow(QMainWindow):
         self.capture = None
         self.current_frame = None
         self.current_detections: list[Detection] = []
+        self.current_display_frame = None
         self.review_frame = None
         self.review_meta_path: Path | None = None
+        self.active_process: QProcess | None = None
+        self.active_process_name = ""
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
 
         self.setWindowTitle("Robot Vision Data Studio")
-        self.resize(1440, 900)
+        self.resize(1360, 860)
+        self.setMinimumSize(1024, 720)
+        self._apply_styles()
         self._build_ui()
         self._create_menu()
         self._update_decision_banner()
         self.refresh_review_sessions()
 
+    def _apply_styles(self) -> None:
+        self.setStyleSheet(
+            """
+            QMainWindow, QWidget {
+                background: #f4f7fb;
+                color: #162033;
+                font-size: 13px;
+            }
+            QTabWidget::pane {
+                border: 1px solid #d7e0ea;
+                border-radius: 14px;
+                background: #f8fbff;
+            }
+            QTabBar::tab {
+                background: #dfe8f3;
+                color: #425069;
+                padding: 10px 16px;
+                margin-right: 6px;
+                border-top-left-radius: 10px;
+                border-top-right-radius: 10px;
+            }
+            QTabBar::tab:selected {
+                background: #f8fbff;
+                color: #122033;
+                font-weight: 600;
+            }
+            QGroupBox {
+                background: #ffffff;
+                border: 1px solid #d7e0ea;
+                border-radius: 14px;
+                margin-top: 12px;
+                padding: 12px;
+                font-weight: 600;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 14px;
+                padding: 0 6px;
+                color: #1f2f46;
+            }
+            QLineEdit, QComboBox, QTextEdit, QTableWidget {
+                background: #fbfdff;
+                border: 1px solid #ccd7e3;
+                border-radius: 10px;
+                padding: 7px 9px;
+                selection-background-color: #2f6fed;
+            }
+            QComboBox::drop-down {
+                border: 0;
+                width: 24px;
+            }
+            QPushButton {
+                background: #1d4ed8;
+                color: white;
+                border: 0;
+                border-radius: 10px;
+                padding: 9px 14px;
+                min-height: 18px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background: #1e40af;
+            }
+            QPushButton:pressed {
+                background: #1a388f;
+            }
+            QHeaderView::section {
+                background: #eaf0f6;
+                color: #334155;
+                border: 0;
+                border-bottom: 1px solid #d7e0ea;
+                padding: 8px;
+                font-weight: 600;
+            }
+            QTableWidget {
+                gridline-color: #e2e8f0;
+            }
+            QSlider::groove:horizontal {
+                background: #dbe4f0;
+                height: 6px;
+                border-radius: 3px;
+            }
+            QSlider::handle:horizontal {
+                background: #1d4ed8;
+                width: 16px;
+                margin: -6px 0;
+                border-radius: 8px;
+            }
+            """
+        )
+
     def _build_ui(self) -> None:
         root = QWidget()
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
 
         tabs = QTabWidget()
+        tabs.setDocumentMode(True)
         tabs.addTab(self._build_live_tab(), "Live Capture")
         tabs.addTab(self._build_review_tab(), "Review / Label")
+        tabs.addTab(self._build_train_tab(), "Train / Evaluate")
         layout.addWidget(tabs)
 
     def _build_live_tab(self) -> QWidget:
         tab = QWidget()
-        layout = QHBoxLayout(tab)
+        layout = QVBoxLayout(tab)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(12)
 
-        left = QVBoxLayout()
+        left_panel = QWidget()
+        left_panel.setMinimumWidth(300)
+        left_panel.setMaximumWidth(380)
+        left = QVBoxLayout(left_panel)
+        left.setContentsMargins(0, 0, 0, 0)
+        left.setSpacing(12)
         left.addWidget(self._build_source_box())
         left.addStretch(1)
 
         self.video_label = QLabel("Camera preview")
-        self.video_label.setMinimumSize(960, 540)
+        self.video_label.setMinimumSize(420, 260)
+        self.video_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.video_label.setAlignment(Qt.AlignCenter)
-        self.video_label.setStyleSheet("background-color: #101820; color: #f1f5f9;")
+        self.video_label.setStyleSheet(
+            "background-color: #0f172a; color: #e2e8f0; border-radius: 18px; padding: 12px;"
+        )
         self.decision_label = QLabel("Decision: clear")
         self.decision_label.setAlignment(Qt.AlignCenter)
+        self.decision_label.setMinimumHeight(56)
 
-        center = QVBoxLayout()
+        center_panel = QWidget()
+        center = QVBoxLayout(center_panel)
+        center.setContentsMargins(0, 0, 0, 0)
+        center.setSpacing(12)
         center.addWidget(self.decision_label)
         center.addWidget(self.video_label, 1)
 
-        right = QVBoxLayout()
+        right_panel = QWidget()
+        right_panel.setMinimumWidth(320)
+        right_panel.setMaximumWidth(420)
+        right = QVBoxLayout(right_panel)
+        right.setContentsMargins(0, 0, 0, 0)
+        right.setSpacing(12)
         right.addWidget(self._build_capture_box())
         right.addWidget(self._build_notes_box(), 1)
 
-        layout.addLayout(left, 0)
-        layout.addLayout(center, 1)
-        layout.addLayout(right, 0)
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(10)
+        splitter.setOpaqueResize(True)
+        splitter.addWidget(left_panel)
+        splitter.addWidget(center_panel)
+        splitter.addWidget(right_panel)
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setStretchFactor(2, 0)
+        splitter.setSizes([320, 820, 340])
+
+        layout.addWidget(splitter, 1)
         return tab
 
     def _build_review_tab(self) -> QWidget:
         tab = QWidget()
-        layout = QHBoxLayout(tab)
+        layout = QVBoxLayout(tab)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(12)
 
-        left = QVBoxLayout()
+        left_panel = QWidget()
+        left_panel.setMinimumWidth(300)
+        left_panel.setMaximumWidth(400)
+        left = QVBoxLayout(left_panel)
+        left.setContentsMargins(0, 0, 0, 0)
+        left.setSpacing(12)
         left.addWidget(self._build_review_browser_box())
         left.addWidget(self._build_review_meta_box())
         left.addStretch(1)
 
         self.review_image_label = ReviewImageLabel()
-        self.review_image_label.setMinimumSize(960, 540)
+        self.review_image_label.setMinimumSize(420, 260)
+        self.review_image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.review_image_label.setAlignment(Qt.AlignCenter)
-        self.review_image_label.setStyleSheet("background-color: #111827; color: #e5e7eb;")
+        self.review_image_label.setStyleSheet(
+            "background-color: #111827; color: #e5e7eb; border-radius: 18px; padding: 12px;"
+        )
         self.review_image_label.set_box_created_callback(self._handle_review_box_created)
 
-        center = QVBoxLayout()
+        center_panel = QWidget()
+        center = QVBoxLayout(center_panel)
+        center.setContentsMargins(0, 0, 0, 0)
         center.addWidget(self.review_image_label, 1)
 
-        right = QVBoxLayout()
+        right_panel = QWidget()
+        right_panel.setMinimumWidth(360)
+        right_panel.setMaximumWidth(480)
+        right = QVBoxLayout(right_panel)
+        right.setContentsMargins(0, 0, 0, 0)
         right.addWidget(self._build_review_table_box(), 1)
 
-        layout.addLayout(left, 0)
-        layout.addLayout(center, 1)
-        layout.addLayout(right, 0)
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(10)
+        splitter.setOpaqueResize(True)
+        splitter.addWidget(left_panel)
+        splitter.addWidget(center_panel)
+        splitter.addWidget(right_panel)
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setStretchFactor(2, 0)
+        splitter.setSizes([330, 760, 390])
+
+        layout.addWidget(splitter, 1)
         return tab
 
     def _build_source_box(self) -> QGroupBox:
         box = QGroupBox("Live Test")
         form = QFormLayout(box)
+        form.setSpacing(10)
 
         self.camera_combo = QComboBox()
         self.camera_combo.setEditable(True)
@@ -309,11 +468,11 @@ class MainWindow(QMainWindow):
         self.model_combo = QComboBox()
         self.model_combo.setEditable(True)
         self.model_combo.setPlaceholderText("Select a model from models/ or paste a path (pt/onnx)")
-        refresh_models_button = QPushButton("Refresh")
+        refresh_models_button = QPushButton("Refresh List")
         refresh_models_button.clicked.connect(self.refresh_models)
-        browse_model_button = QPushButton("Browse")
+        browse_model_button = QPushButton("Choose File")
         browse_model_button.clicked.connect(self.choose_model_file)
-        model_button = QPushButton("Load")
+        model_button = QPushButton("Load Model")
         model_button.clicked.connect(self.load_model)
 
         self.loaded_model_label = QLabel("Loaded: none")
@@ -334,11 +493,13 @@ class MainWindow(QMainWindow):
         camera_row.addWidget(self.camera_combo)
         camera_row.addWidget(refresh_cameras_button)
 
-        model_row = QHBoxLayout()
-        model_row.addWidget(self.model_combo)
-        model_row.addWidget(refresh_models_button)
-        model_row.addWidget(browse_model_button)
-        model_row.addWidget(model_button)
+        model_row = QGridLayout()
+        model_row.setHorizontalSpacing(8)
+        model_row.setVerticalSpacing(8)
+        model_row.addWidget(self.model_combo, 0, 0, 1, 3)
+        model_row.addWidget(refresh_models_button, 1, 0)
+        model_row.addWidget(browse_model_button, 1, 1)
+        model_row.addWidget(model_button, 1, 2)
 
         live_row = QHBoxLayout()
         live_row.addWidget(start_button)
@@ -358,9 +519,162 @@ class MainWindow(QMainWindow):
         self.refresh_models()
         return box
 
+    def _build_train_tab(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(12)
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(10)
+        splitter.setOpaqueResize(True)
+
+        controls_panel = QWidget()
+        controls_panel.setMinimumWidth(360)
+        controls_panel.setMaximumWidth(460)
+        controls_layout = QVBoxLayout(controls_panel)
+        controls_layout.setContentsMargins(0, 0, 0, 0)
+        controls_layout.setSpacing(12)
+        controls_layout.addWidget(self._build_export_box())
+        controls_layout.addWidget(self._build_training_box())
+        controls_layout.addWidget(self._build_run_box())
+        controls_layout.addStretch(1)
+
+        log_panel = QWidget()
+        log_layout = QVBoxLayout(log_panel)
+        log_layout.setContentsMargins(0, 0, 0, 0)
+        log_layout.setSpacing(12)
+        log_layout.addWidget(self._build_train_log_box(), 1)
+
+        splitter.addWidget(controls_panel)
+        splitter.addWidget(log_panel)
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([420, 920])
+
+        layout.addWidget(splitter, 1)
+        return tab
+
+    def _build_export_box(self) -> QGroupBox:
+        box = QGroupBox("Dataset Export")
+        form = QFormLayout(box)
+        form.setSpacing(10)
+
+        self.export_raw_input = QLineEdit("data/raw")
+        self.export_out_input = QLineEdit("datasets/robot_obstacle")
+        self.export_train_split = QDoubleSpinBox()
+        self.export_train_split.setRange(0.0, 1.0)
+        self.export_train_split.setSingleStep(0.05)
+        self.export_train_split.setValue(0.8)
+        self.export_val_split = QDoubleSpinBox()
+        self.export_val_split.setRange(0.0, 1.0)
+        self.export_val_split.setSingleStep(0.05)
+        self.export_val_split.setValue(0.1)
+        self.export_test_split = QDoubleSpinBox()
+        self.export_test_split.setRange(0.0, 1.0)
+        self.export_test_split.setSingleStep(0.05)
+        self.export_test_split.setValue(0.1)
+        self.export_min_conf = QDoubleSpinBox()
+        self.export_min_conf.setRange(0.0, 1.0)
+        self.export_min_conf.setSingleStep(0.05)
+        self.export_min_conf.setValue(0.0)
+        self.export_clear_out = QCheckBox("Replace previous export before writing")
+        self.export_status_label = QLabel("Ready to export dataset")
+        self.export_status_label.setWordWrap(True)
+        export_button = QPushButton("Export Dataset")
+        export_button.clicked.connect(self.export_dataset)
+        self.export_button = export_button
+
+        split_row = QGridLayout()
+        split_row.setHorizontalSpacing(8)
+        split_row.addWidget(QLabel("Train"), 0, 0)
+        split_row.addWidget(self.export_train_split, 0, 1)
+        split_row.addWidget(QLabel("Val"), 0, 2)
+        split_row.addWidget(self.export_val_split, 0, 3)
+        split_row.addWidget(QLabel("Test"), 0, 4)
+        split_row.addWidget(self.export_test_split, 0, 5)
+
+        form.addRow("Raw Data", self.export_raw_input)
+        form.addRow("Output Dir", self.export_out_input)
+        form.addRow("Split", split_row)
+        form.addRow("Min Confidence", self.export_min_conf)
+        form.addRow("", self.export_clear_out)
+        form.addRow("Status", self.export_status_label)
+        form.addRow("", export_button)
+        return box
+
+    def _build_training_box(self) -> QGroupBox:
+        box = QGroupBox("Training")
+        form = QFormLayout(box)
+        form.setSpacing(10)
+
+        self.train_data_input = QLineEdit("configs/dataset.yaml")
+        self.train_model_input = QLineEdit("models/yolo11n.pt")
+        self.train_epochs_input = QSpinBox()
+        self.train_epochs_input.setRange(1, 1000)
+        self.train_epochs_input.setValue(50)
+        self.train_imgsz_input = QSpinBox()
+        self.train_imgsz_input.setRange(64, 4096)
+        self.train_imgsz_input.setSingleStep(32)
+        self.train_imgsz_input.setValue(640)
+        self.train_batch_input = QSpinBox()
+        self.train_batch_input.setRange(1, 512)
+        self.train_batch_input.setValue(16)
+        self.train_project_input = QLineEdit("runs/train")
+        self.train_name_input = QLineEdit("robot_obstacle")
+        self.train_status_label = QLabel("Ready to train")
+        self.train_status_label.setWordWrap(True)
+        self.train_button = QPushButton("Start Training")
+        self.train_button.clicked.connect(self.start_training)
+
+        form.addRow("Dataset YAML", self.train_data_input)
+        form.addRow("Base Model", self.train_model_input)
+        form.addRow("Epochs", self.train_epochs_input)
+        form.addRow("Image Size", self.train_imgsz_input)
+        form.addRow("Batch", self.train_batch_input)
+        form.addRow("Project Dir", self.train_project_input)
+        form.addRow("Run Name", self.train_name_input)
+        form.addRow("Status", self.train_status_label)
+        form.addRow("", self.train_button)
+        return box
+
+    def _build_run_box(self) -> QGroupBox:
+        box = QGroupBox("Run Control")
+        layout = QVBoxLayout(box)
+        layout.setSpacing(10)
+
+        self.process_status_label = QLabel("No active task")
+        self.process_status_label.setWordWrap(True)
+        clear_button = QPushButton("Clear Log")
+        clear_button.clicked.connect(self._clear_train_log)
+        self.stop_process_button = QPushButton("Stop Task")
+        self.stop_process_button.clicked.connect(self.stop_active_process)
+        self.stop_process_button.setEnabled(False)
+
+        row = QGridLayout()
+        row.setHorizontalSpacing(8)
+        row.setVerticalSpacing(8)
+        row.addWidget(clear_button, 0, 0)
+        row.addWidget(self.stop_process_button, 0, 1)
+
+        layout.addWidget(self.process_status_label)
+        layout.addLayout(row)
+        return box
+
+    def _build_train_log_box(self) -> QGroupBox:
+        box = QGroupBox("Run Log")
+        layout = QVBoxLayout(box)
+        self.train_log_output = QTextEdit()
+        self.train_log_output.setReadOnly(True)
+        self.train_log_output.setPlaceholderText("Export and training logs will appear here.")
+        layout.addWidget(self.train_log_output, 1)
+        return box
+
     def _build_capture_box(self) -> QGroupBox:
         box = QGroupBox("Collection")
         form = QFormLayout(box)
+        form.setSpacing(10)
 
         self.session_input = QLineEdit("field_session_001")
         self.source_name_input = QLineEdit("robot_webcam_front")
@@ -380,6 +694,7 @@ class MainWindow(QMainWindow):
         box = QGroupBox("Operator Notes")
         layout = QVBoxLayout(box)
         self.notes_input = QTextEdit()
+        self.notes_input.setMinimumHeight(220)
         self.notes_input.setPlaceholderText("Example: person crossing from left to right, hallway narrow, low light")
         layout.addWidget(self.notes_input)
         return box
@@ -387,6 +702,7 @@ class MainWindow(QMainWindow):
     def _build_review_browser_box(self) -> QGroupBox:
         box = QGroupBox("Review Browser")
         form = QFormLayout(box)
+        form.setSpacing(10)
 
         self.review_session_combo = QComboBox()
         self.review_session_combo.currentTextChanged.connect(self.refresh_review_captures)
@@ -394,15 +710,17 @@ class MainWindow(QMainWindow):
 
         refresh_button = QPushButton("Refresh")
         refresh_button.clicked.connect(self.refresh_review_sessions)
-        load_button = QPushButton("Load Capture")
+        load_button = QPushButton("Load Review")
         load_button.clicked.connect(self.load_review_capture)
-        auto_button = QPushButton("Auto From Model")
+        auto_button = QPushButton("Auto Label")
         auto_button.clicked.connect(self.auto_label_review_capture)
 
-        row = QHBoxLayout()
-        row.addWidget(refresh_button)
-        row.addWidget(load_button)
-        row.addWidget(auto_button)
+        row = QGridLayout()
+        row.setHorizontalSpacing(8)
+        row.setVerticalSpacing(8)
+        row.addWidget(refresh_button, 0, 0)
+        row.addWidget(load_button, 0, 1)
+        row.addWidget(auto_button, 1, 0, 1, 2)
 
         form.addRow("Session", self.review_session_combo)
         form.addRow("Capture", self.review_capture_combo)
@@ -412,14 +730,17 @@ class MainWindow(QMainWindow):
     def _build_review_meta_box(self) -> QGroupBox:
         box = QGroupBox("Review Metadata")
         form = QFormLayout(box)
+        form.setSpacing(10)
 
         self.review_scene_tag_combo = QComboBox()
         self.review_scene_tag_combo.addItems(DEFAULT_DECISIONS)
         self.review_new_label_combo = QComboBox()
         self.review_new_label_combo.addItems(DEFAULT_CLASSES)
         self.review_note_input = QTextEdit()
+        self.review_note_input.setMinimumHeight(180)
         self.review_note_input.setPlaceholderText("Notes for corrected sample")
         self.review_status_label = QLabel("No capture loaded")
+        self.review_status_label.setWordWrap(True)
 
         form.addRow("Scene Tag", self.review_scene_tag_combo)
         form.addRow("Draw Label", self.review_new_label_combo)
@@ -433,10 +754,18 @@ class MainWindow(QMainWindow):
 
         self.review_table = QTableWidget(0, len(TABLE_HEADERS))
         self.review_table.setHorizontalHeaderLabels(TABLE_HEADERS)
-        self.review_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.review_table.setAlternatingRowColors(True)
+        header = self.review_table.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        for col in range(2, len(TABLE_HEADERS)):
+            header.setSectionResizeMode(col, QHeaderView.ResizeToContents)
         self.review_table.itemChanged.connect(self._review_table_changed)
 
-        button_row = QHBoxLayout()
+        button_row = QGridLayout()
+        button_row.setHorizontalSpacing(8)
+        button_row.setVerticalSpacing(8)
         add_button = QPushButton("Add Box")
         add_button.clicked.connect(self.add_review_row)
         remove_button = QPushButton("Remove Row")
@@ -445,10 +774,10 @@ class MainWindow(QMainWindow):
         save_button.clicked.connect(self.save_review_labels)
         reload_button = QPushButton("Reload")
         reload_button.clicked.connect(self.load_review_capture)
-        button_row.addWidget(add_button)
-        button_row.addWidget(remove_button)
-        button_row.addWidget(reload_button)
-        button_row.addWidget(save_button)
+        button_row.addWidget(add_button, 0, 0)
+        button_row.addWidget(remove_button, 0, 1)
+        button_row.addWidget(reload_button, 1, 0)
+        button_row.addWidget(save_button, 1, 1)
 
         layout.addWidget(self.review_table, 1)
         layout.addLayout(button_row)
@@ -469,14 +798,192 @@ class MainWindow(QMainWindow):
         open_data.triggered.connect(self.show_data_folder)
         menu.addAction(open_data)
 
+        help_menu = self.menuBar().addMenu("Help")
+        about_action = QAction("About", self)
+        about_action.triggered.connect(self.show_about_dialog)
+        help_menu.addAction(about_action)
+
     def _update_conf_label(self) -> None:
         self.confidence_value.setText(f"{self.confidence_slider.value() / 100:.2f}")
 
     def _set_status(self, text: str) -> None:
         self.live_status_label.setText(text)
+        self.statusBar().showMessage(text, 4000)
 
     def _set_review_status(self, text: str) -> None:
         self.review_status_label.setText(text)
+        self.statusBar().showMessage(text, 4000)
+
+    def _set_process_status(self, text: str) -> None:
+        self.process_status_label.setText(text)
+        self.statusBar().showMessage(text, 4000)
+
+    def _append_train_log(self, text: str) -> None:
+        cleaned = text.rstrip()
+        if not cleaned:
+            return
+        self.train_log_output.append(cleaned)
+
+    def _clear_train_log(self) -> None:
+        self.train_log_output.clear()
+
+    def _set_task_buttons_enabled(self, enabled: bool) -> None:
+        self.export_button.setEnabled(enabled)
+        self.train_button.setEnabled(enabled)
+        self.stop_process_button.setEnabled(not enabled)
+
+    def _resolve_existing_path(self, raw: str, label: str) -> Path | None:
+        path = self.paths.resolve_in_project(raw.strip())
+        if path.exists():
+            return path
+        QMessageBox.warning(self, "Path Not Found", f"{label} not found:\n{path}")
+        return None
+
+    def _start_process(self, title: str, script_rel: str, args: list[str]) -> bool:
+        if self.active_process is not None:
+            QMessageBox.information(self, "Task Running", "Please wait for the current task to finish or stop it first.")
+            return False
+
+        process = QProcess(self)
+        process.setProgram(sys.executable or "python3")
+        process.setArguments([str(self.paths.root / script_rel), *args])
+        process.setWorkingDirectory(str(self.paths.root))
+        process.setProcessChannelMode(QProcess.SeparateChannels)
+        process.readyReadStandardOutput.connect(self._read_process_stdout)
+        process.readyReadStandardError.connect(self._read_process_stderr)
+        process.finished.connect(self._process_finished)
+
+        self.active_process = process
+        self.active_process_name = title
+        self._set_task_buttons_enabled(False)
+        self._set_process_status(f"{title} is running")
+        self._append_train_log(f"$ {process.program()} {' '.join(process.arguments())}")
+        process.start()
+        if not process.waitForStarted(3000):
+            self._append_train_log(f"{title} failed to start.")
+            self._set_process_status(f"{title} failed to start")
+            self.active_process = None
+            self.active_process_name = ""
+            self._set_task_buttons_enabled(True)
+            return False
+        return True
+
+    def _read_process_stdout(self) -> None:
+        if self.active_process is None:
+            return
+        data = bytes(self.active_process.readAllStandardOutput()).decode("utf-8", errors="replace")
+        self._append_train_log(data)
+
+    def _read_process_stderr(self) -> None:
+        if self.active_process is None:
+            return
+        data = bytes(self.active_process.readAllStandardError()).decode("utf-8", errors="replace")
+        self._append_train_log(data)
+
+    def _process_finished(self, exit_code: int, _exit_status) -> None:
+        task_name = self.active_process_name or "Task"
+        ok = exit_code == 0
+        message = f"{task_name} completed successfully." if ok else f"{task_name} failed with exit code {exit_code}."
+        self._append_train_log(message)
+        self._set_process_status(message)
+        if "Export" in task_name:
+            self.export_status_label.setText(message)
+        elif "Training" in task_name:
+            self.train_status_label.setText(message)
+        self.active_process = None
+        self.active_process_name = ""
+        self._set_task_buttons_enabled(True)
+
+    def export_dataset(self) -> None:
+        raw_dir = self._resolve_existing_path(self.export_raw_input.text(), "Raw data directory")
+        if raw_dir is None:
+            return
+        out_dir = self.paths.resolve_in_project(self.export_out_input.text().strip())
+        args = [
+            "--raw",
+            str(raw_dir),
+            "--out",
+            str(out_dir),
+            "--train",
+            str(self.export_train_split.value()),
+            "--val",
+            str(self.export_val_split.value()),
+            "--test",
+            str(self.export_test_split.value()),
+            "--min-conf",
+            str(self.export_min_conf.value()),
+        ]
+        if self.export_clear_out.isChecked():
+            args.append("--clear-out")
+        self.export_status_label.setText("Export started...")
+        self._start_process("Dataset Export", "scripts/export_yolo_dataset.py", args)
+
+    def start_training(self) -> None:
+        data_path = self._resolve_existing_path(self.train_data_input.text(), "Dataset YAML")
+        if data_path is None:
+            return
+        model_path = self._resolve_existing_path(self.train_model_input.text(), "Base model")
+        if model_path is None:
+            return
+        project_dir = self.paths.resolve_in_project(self.train_project_input.text().strip())
+        args = [
+            "--data",
+            str(data_path),
+            "--model",
+            str(model_path),
+            "--epochs",
+            str(self.train_epochs_input.value()),
+            "--imgsz",
+            str(self.train_imgsz_input.value()),
+            "--project",
+            str(project_dir),
+            "--name",
+            self.train_name_input.text().strip() or "robot_obstacle",
+            "--batch",
+            str(self.train_batch_input.value()),
+        ]
+        self.train_status_label.setText("Training started...")
+        self._start_process("Training", "scripts/train.py", args)
+
+    def stop_active_process(self) -> None:
+        if self.active_process is None:
+            return
+        task_name = self.active_process_name or "Task"
+        self._append_train_log(f"Stopping {task_name}...")
+        self.active_process.kill()
+        self._set_process_status(f"Stopping {task_name}...")
+
+    def show_about_dialog(self) -> None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle("About Robot Vision Data Studio")
+        dialog.setMinimumWidth(420)
+        layout = QVBoxLayout(dialog)
+
+        title = QLabel("Robot Vision Data Studio")
+        title.setStyleSheet("font-size: 22px; font-weight: 700; color: #122033;")
+        version = QLabel("Version 1.0")
+        version.setStyleSheet("color: #475569; font-size: 14px;")
+        description = QLabel(
+            "Desktop toolkit for collecting robot-vision data, reviewing labels, and training YOLO models in one place."
+        )
+        description.setWordWrap(True)
+        developer = QLabel(
+            "Developer: Nakarin Sripanya\n"
+            "Electrical Engineering Program\n"
+            "Faculty of Industry and Technology\n"
+            "Rajamangala University of Technology Isan"
+        )
+        developer.setWordWrap(True)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok)
+        buttons.accepted.connect(dialog.accept)
+
+        layout.addWidget(title)
+        layout.addWidget(version)
+        layout.addWidget(description)
+        layout.addWidget(developer)
+        layout.addWidget(buttons)
+        dialog.exec()
 
     def _resolve_model_path(self, raw: str) -> Path:
         return self.paths.resolve_in_project(raw)
@@ -490,15 +997,21 @@ class MainWindow(QMainWindow):
 
     def _update_decision_banner(self) -> None:
         decision = self._current_decision()
+        labels = {
+            "stop_wait": "Stop / Wait",
+            "bypass_candidate": "Bypass Candidate",
+            "clear": "Path Clear",
+        }
         colors = {
             "stop_wait": ("#fee2e2", "#991b1b"),
             "bypass_candidate": ("#ffedd5", "#9a3412"),
             "clear": ("#d1fae5", "#065f46"),
         }
         bg, fg = colors.get(decision, ("#e2e8f0", "#0f172a"))
-        self.decision_label.setText(f"Decision: {decision}")
+        self.decision_label.setText(f"Decision: {labels.get(decision, decision)}")
         self.decision_label.setStyleSheet(
-            f"font-size: 18px; font-weight: 600; color: {fg}; background: {bg}; padding: 10px; border-radius: 8px;"
+            f"font-size: 18px; font-weight: 700; color: {fg}; background: {bg}; "
+            "padding: 12px 16px; border-radius: 14px; border: 1px solid rgba(15, 23, 42, 0.08);"
         )
 
     def _refresh_all(self) -> None:
@@ -583,8 +1096,9 @@ class MainWindow(QMainWindow):
         conf = self.confidence_slider.value() / 100.0
         self.current_detections = self.detector.predict(frame, conf=conf)
         self._update_decision_banner()
-        display = draw_detections(frame, self.current_detections)
-        self.video_label.setPixmap(self._to_pixmap(display, self.video_label))
+        self.current_display_frame = draw_detections(frame, self.current_detections)
+        self.video_label.setPixmap(self._to_pixmap(self.current_display_frame, self.video_label))
+        self.video_label.setText("")
 
     def _to_pixmap(self, frame, target: QLabel) -> QPixmap:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -670,6 +1184,15 @@ class MainWindow(QMainWindow):
             return None
         return load_capture_meta(self.review_meta_path)
 
+    def _preferred_review_detections(self, meta: dict) -> list[dict]:
+        corrected = meta.get("corrected_detections")
+        if isinstance(corrected, list) and (meta.get("corrected_at") or corrected):
+            return corrected
+        detections = meta.get("detections")
+        if isinstance(detections, list):
+            return detections
+        return []
+
     def load_review_capture(self) -> None:
         data = self.review_capture_combo.currentData()
         if not data:
@@ -685,11 +1208,7 @@ class MainWindow(QMainWindow):
         self.review_frame = frame
         self.review_scene_tag_combo.setCurrentText(str(meta.get("scene_tag", "clear")))
         self.review_note_input.setPlainText(str(meta.get("operator_note", "")))
-        if "corrected_detections" in meta and isinstance(meta.get("corrected_detections"), list):
-            detections = meta.get("corrected_detections") or []
-        else:
-            detections = meta.get("detections") or []
-        self._set_review_table(detections)
+        self._set_review_table(self._preferred_review_detections(meta))
         self._refresh_review_preview()
         self._set_review_status(f"Loaded: {self.review_meta_path.name}")
 
@@ -808,7 +1327,16 @@ class MainWindow(QMainWindow):
     def show_data_folder(self) -> None:
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.paths.raw_data_dir)))
 
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        if self.current_display_frame is not None and self.video_label.width() > 0 and self.video_label.height() > 0:
+            self.video_label.setPixmap(self._to_pixmap(self.current_display_frame, self.video_label))
+            self.video_label.setText("")
+        super().resizeEvent(event)
+
     def closeEvent(self, event) -> None:  # noqa: N802
+        if self.active_process is not None:
+            self.active_process.kill()
+            self.active_process.waitForFinished(2000)
         self.stop_camera()
         super().closeEvent(event)
 
