@@ -8,3 +8,7 @@ Thumbs.db
 runs/
 data/raw/
 datasets/
+build/
+dist/
+release/
+*.spec
