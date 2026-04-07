@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Robot Vision Data Studio
+Comment=Collect robot-vision data, review labels, and train YOLO models
+Exec=/opt/RVDStudio/rvdstudio
+Terminal=false
+Categories=Education;Science;Development;
+StartupNotify=true

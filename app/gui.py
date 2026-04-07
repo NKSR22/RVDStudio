@@ -10,6 +10,7 @@ import cv2
 from PySide6.QtCore import QPoint, QProcess, QTimer, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QImage, QPixmap
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QApplication,
     QComboBox,
@@ -27,6 +28,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QSlider,
     QSpinBox,
@@ -228,12 +230,17 @@ class MainWindow(QMainWindow):
         self.review_meta_path: Path | None = None
         self.active_process: QProcess | None = None
         self.active_process_name = ""
+        self.comfortable_ui = sys.platform.startswith("linux")
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
 
         self.setWindowTitle("Robot Vision Data Studio")
-        self.resize(1360, 860)
-        self.setMinimumSize(1024, 720)
+        if self.comfortable_ui:
+            self.resize(1440, 920)
+            self.setMinimumSize(1120, 760)
+        else:
+            self.resize(1360, 860)
+            self.setMinimumSize(1024, 720)
         self._apply_styles()
         self._build_ui()
         self._create_menu()
@@ -241,64 +248,99 @@ class MainWindow(QMainWindow):
         self.refresh_review_sessions()
 
     def _apply_styles(self) -> None:
-        self.setStyleSheet(
-            """
+        scale = 1.10 if self.comfortable_ui else 1.0
+
+        def s(value: int) -> int:
+            return int(round(value * scale))
+
+        style = """
             QMainWindow, QWidget {
                 background: #f4f7fb;
                 color: #162033;
-                font-size: 13px;
+                font-size: __FONT__px;
+            }
+            QMenuBar {
+                background: #edf3fa;
+                border-bottom: 1px solid #d7e0ea;
+                padding: __MENU_PAD_V__px __MENU_PAD_H__px;
+            }
+            QMenuBar::item {
+                padding: __MENU_ITEM_V__px __MENU_ITEM_H__px;
+                border-radius: __RADIUS_SM__px;
+            }
+            QMenuBar::item:selected {
+                background: #dbe7f5;
+            }
+            QMenu {
+                background: #ffffff;
+                border: 1px solid #d7e0ea;
+                padding: __MENU_PAD__px;
+            }
+            QMenu::item {
+                padding: __MENU_ITEM_V__px __MENU_ROW_H__px;
+                border-radius: __RADIUS_SM__px;
+            }
+            QMenu::item:selected {
+                background: #e7f0ff;
             }
             QTabWidget::pane {
                 border: 1px solid #d7e0ea;
-                border-radius: 14px;
+                border-radius: __RADIUS_MD__px;
                 background: #f8fbff;
             }
             QTabBar::tab {
                 background: #dfe8f3;
                 color: #425069;
-                padding: 10px 16px;
-                margin-right: 6px;
-                border-top-left-radius: 10px;
-                border-top-right-radius: 10px;
+                padding: __TAB_V__px __TAB_H__px;
+                margin-right: __TAB_GAP__px;
+                border-top-left-radius: __TAB_RADIUS__px;
+                border-top-right-radius: __TAB_RADIUS__px;
+                font-size: __FONT__px;
             }
             QTabBar::tab:selected {
                 background: #f8fbff;
                 color: #122033;
-                font-weight: 600;
+                font-weight: 700;
             }
             QGroupBox {
                 background: #ffffff;
                 border: 1px solid #d7e0ea;
-                border-radius: 14px;
-                margin-top: 12px;
-                padding: 12px;
-                font-weight: 600;
+                border-radius: __RADIUS_LG__px;
+                margin-top: __GROUP_MARGIN__px;
+                padding: __GROUP_PADDING__px;
+                font-weight: 700;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
-                left: 14px;
+                left: __GROUP_TITLE_LEFT__px;
                 padding: 0 6px;
                 color: #1f2f46;
+                font-size: __FONT__px;
             }
-            QLineEdit, QComboBox, QTextEdit, QTableWidget {
+            QLabel {
+                color: #243246;
+            }
+            QLineEdit, QComboBox, QTextEdit, QTableWidget, QSpinBox, QDoubleSpinBox {
                 background: #fbfdff;
                 border: 1px solid #ccd7e3;
-                border-radius: 10px;
-                padding: 7px 9px;
+                border-radius: __RADIUS_FIELD__px;
+                padding: __FIELD_PAD_V__px __FIELD_PAD_H__px;
                 selection-background-color: #2f6fed;
+                min-height: __FIELD_MIN_H__px;
             }
             QComboBox::drop-down {
                 border: 0;
-                width: 24px;
+                width: __DROPDOWN_W__px;
             }
             QPushButton {
                 background: #1d4ed8;
                 color: white;
                 border: 0;
-                border-radius: 10px;
-                padding: 9px 14px;
-                min-height: 18px;
-                font-weight: 600;
+                border-radius: __BUTTON_RADIUS__px;
+                padding: __BUTTON_PAD_V__px __BUTTON_PAD_H__px;
+                min-height: __BUTTON_MIN_H__px;
+                font-weight: 700;
+                font-size: __FONT__px;
             }
             QPushButton:hover {
                 background: #1e40af;
@@ -306,30 +348,83 @@ class MainWindow(QMainWindow):
             QPushButton:pressed {
                 background: #1a388f;
             }
+            QPushButton:disabled {
+                background: #9fb3d6;
+                color: #eef4ff;
+            }
             QHeaderView::section {
                 background: #eaf0f6;
                 color: #334155;
                 border: 0;
                 border-bottom: 1px solid #d7e0ea;
-                padding: 8px;
-                font-weight: 600;
+                padding: __HEADER_PAD__px;
+                font-weight: 700;
             }
             QTableWidget {
                 gridline-color: #e2e8f0;
             }
+            QStatusBar {
+                background: #edf3fa;
+                border-top: 1px solid #d7e0ea;
+            }
+            QScrollArea {
+                border: 0;
+                background: transparent;
+            }
             QSlider::groove:horizontal {
                 background: #dbe4f0;
-                height: 6px;
+                height: __SLIDER_H__px;
                 border-radius: 3px;
             }
             QSlider::handle:horizontal {
                 background: #1d4ed8;
-                width: 16px;
+                width: __SLIDER_HANDLE_W__px;
                 margin: -6px 0;
-                border-radius: 8px;
+                border-radius: __SLIDER_HANDLE_R__px;
             }
             """
-        )
+        replacements = {
+            "__FONT__": str(s(14)),
+            "__MENU_PAD_V__": str(s(4)),
+            "__MENU_PAD_H__": str(s(8)),
+            "__MENU_ITEM_V__": str(s(9)),
+            "__MENU_ITEM_H__": str(s(14)),
+            "__MENU_ROW_H__": str(s(20)),
+            "__MENU_PAD__": str(s(6)),
+            "__RADIUS_SM__": str(s(8)),
+            "__RADIUS_MD__": str(s(14)),
+            "__RADIUS_LG__": str(s(16)),
+            "__TAB_V__": str(s(13)),
+            "__TAB_H__": str(s(20)),
+            "__TAB_GAP__": str(s(6)),
+            "__TAB_RADIUS__": str(s(10)),
+            "__GROUP_MARGIN__": str(s(14)),
+            "__GROUP_PADDING__": str(s(14)),
+            "__GROUP_TITLE_LEFT__": str(s(14)),
+            "__RADIUS_FIELD__": str(s(10)),
+            "__FIELD_PAD_V__": str(s(10)),
+            "__FIELD_PAD_H__": str(s(12)),
+            "__FIELD_MIN_H__": str(s(24)),
+            "__DROPDOWN_W__": str(s(30)),
+            "__BUTTON_RADIUS__": str(s(12)),
+            "__BUTTON_PAD_V__": str(s(12)),
+            "__BUTTON_PAD_H__": str(s(18)),
+            "__BUTTON_MIN_H__": str(s(26)),
+            "__HEADER_PAD__": str(s(10)),
+            "__SLIDER_H__": str(s(8)),
+            "__SLIDER_HANDLE_W__": str(s(18)),
+            "__SLIDER_HANDLE_R__": str(s(9)),
+        }
+        for key, value in replacements.items():
+            style = style.replace(key, value)
+        self.setStyleSheet(style)
+
+    def _wrap_scroll(self, widget: QWidget) -> QScrollArea:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(widget)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        return scroll
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -352,8 +447,8 @@ class MainWindow(QMainWindow):
         layout.setSpacing(12)
 
         left_panel = QWidget()
-        left_panel.setMinimumWidth(300)
-        left_panel.setMaximumWidth(380)
+        left_panel.setMinimumWidth(330)
+        left_panel.setMaximumWidth(430)
         left = QVBoxLayout(left_panel)
         left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(12)
@@ -379,8 +474,8 @@ class MainWindow(QMainWindow):
         center.addWidget(self.video_label, 1)
 
         right_panel = QWidget()
-        right_panel.setMinimumWidth(320)
-        right_panel.setMaximumWidth(420)
+        right_panel.setMinimumWidth(340)
+        right_panel.setMaximumWidth(460)
         right = QVBoxLayout(right_panel)
         right.setContentsMargins(0, 0, 0, 0)
         right.setSpacing(12)
@@ -391,9 +486,9 @@ class MainWindow(QMainWindow):
         splitter.setChildrenCollapsible(False)
         splitter.setHandleWidth(10)
         splitter.setOpaqueResize(True)
-        splitter.addWidget(left_panel)
+        splitter.addWidget(self._wrap_scroll(left_panel))
         splitter.addWidget(center_panel)
-        splitter.addWidget(right_panel)
+        splitter.addWidget(self._wrap_scroll(right_panel))
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 0)
@@ -409,8 +504,8 @@ class MainWindow(QMainWindow):
         layout.setSpacing(12)
 
         left_panel = QWidget()
-        left_panel.setMinimumWidth(300)
-        left_panel.setMaximumWidth(400)
+        left_panel.setMinimumWidth(330)
+        left_panel.setMaximumWidth(430)
         left = QVBoxLayout(left_panel)
         left.setContentsMargins(0, 0, 0, 0)
         left.setSpacing(12)
@@ -426,15 +521,26 @@ class MainWindow(QMainWindow):
             "background-color: #111827; color: #e5e7eb; border-radius: 18px; padding: 12px;"
         )
         self.review_image_label.set_box_created_callback(self._handle_review_box_created)
+        self.review_summary_label = QLabel("No capture loaded")
+        self.review_summary_label.setWordWrap(True)
+        self.review_summary_label.setStyleSheet(
+            "background: #eff6ff; color: #16304a; border: 1px solid #c8daf8; border-radius: 14px; padding: 12px 14px; font-weight: 600;"
+        )
+        self.review_hint_label = QLabel("Tip: load a capture, drag on the image to draw a box, then fine-tune values in the table.")
+        self.review_hint_label.setWordWrap(True)
+        self.review_hint_label.setStyleSheet("color: #526277; padding: 2px 4px;")
 
         center_panel = QWidget()
         center = QVBoxLayout(center_panel)
         center.setContentsMargins(0, 0, 0, 0)
+        center.setSpacing(12)
+        center.addWidget(self.review_summary_label)
+        center.addWidget(self.review_hint_label)
         center.addWidget(self.review_image_label, 1)
 
         right_panel = QWidget()
-        right_panel.setMinimumWidth(360)
-        right_panel.setMaximumWidth(480)
+        right_panel.setMinimumWidth(380)
+        right_panel.setMaximumWidth(520)
         right = QVBoxLayout(right_panel)
         right.setContentsMargins(0, 0, 0, 0)
         right.addWidget(self._build_review_table_box(), 1)
@@ -443,9 +549,9 @@ class MainWindow(QMainWindow):
         splitter.setChildrenCollapsible(False)
         splitter.setHandleWidth(10)
         splitter.setOpaqueResize(True)
-        splitter.addWidget(left_panel)
+        splitter.addWidget(self._wrap_scroll(left_panel))
         splitter.addWidget(center_panel)
-        splitter.addWidget(right_panel)
+        splitter.addWidget(self._wrap_scroll(right_panel))
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 0)
@@ -493,15 +599,15 @@ class MainWindow(QMainWindow):
         camera_row.addWidget(self.camera_combo)
         camera_row.addWidget(refresh_cameras_button)
 
-        model_row = QGridLayout()
-        model_row.setHorizontalSpacing(8)
-        model_row.setVerticalSpacing(8)
-        model_row.addWidget(self.model_combo, 0, 0, 1, 3)
-        model_row.addWidget(refresh_models_button, 1, 0)
-        model_row.addWidget(browse_model_button, 1, 1)
-        model_row.addWidget(model_button, 1, 2)
+        model_row = QVBoxLayout()
+        model_row.setSpacing(8)
+        model_row.addWidget(self.model_combo)
+        model_row.addWidget(refresh_models_button)
+        model_row.addWidget(browse_model_button)
+        model_row.addWidget(model_button)
 
-        live_row = QHBoxLayout()
+        live_row = QVBoxLayout()
+        live_row.setSpacing(8)
         live_row.addWidget(start_button)
         live_row.addWidget(stop_button)
 
@@ -531,8 +637,8 @@ class MainWindow(QMainWindow):
         splitter.setOpaqueResize(True)
 
         controls_panel = QWidget()
-        controls_panel.setMinimumWidth(360)
-        controls_panel.setMaximumWidth(460)
+        controls_panel.setMinimumWidth(390)
+        controls_panel.setMaximumWidth(520)
         controls_layout = QVBoxLayout(controls_panel)
         controls_layout.setContentsMargins(0, 0, 0, 0)
         controls_layout.setSpacing(12)
@@ -547,7 +653,7 @@ class MainWindow(QMainWindow):
         log_layout.setSpacing(12)
         log_layout.addWidget(self._build_train_log_box(), 1)
 
-        splitter.addWidget(controls_panel)
+        splitter.addWidget(self._wrap_scroll(controls_panel))
         splitter.addWidget(log_panel)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
@@ -586,14 +692,21 @@ class MainWindow(QMainWindow):
         export_button.clicked.connect(self.export_dataset)
         self.export_button = export_button
 
+        for spin in [self.export_train_split, self.export_val_split, self.export_test_split]:
+            spin.setDecimals(2)
+            spin.setMinimumWidth(84)
+            spin.setMaximumWidth(110)
+
         split_row = QGridLayout()
-        split_row.setHorizontalSpacing(8)
+        split_row.setHorizontalSpacing(10)
+        split_row.setVerticalSpacing(8)
         split_row.addWidget(QLabel("Train"), 0, 0)
         split_row.addWidget(self.export_train_split, 0, 1)
-        split_row.addWidget(QLabel("Val"), 0, 2)
-        split_row.addWidget(self.export_val_split, 0, 3)
-        split_row.addWidget(QLabel("Test"), 0, 4)
-        split_row.addWidget(self.export_test_split, 0, 5)
+        split_row.addWidget(QLabel("Val"), 1, 0)
+        split_row.addWidget(self.export_val_split, 1, 1)
+        split_row.addWidget(QLabel("Test"), 2, 0)
+        split_row.addWidget(self.export_test_split, 2, 1)
+        split_row.setColumnStretch(1, 1)
 
         form.addRow("Raw Data", self.export_raw_input)
         form.addRow("Output Dir", self.export_out_input)
@@ -721,6 +834,8 @@ class MainWindow(QMainWindow):
         row.addWidget(refresh_button, 0, 0)
         row.addWidget(load_button, 0, 1)
         row.addWidget(auto_button, 1, 0, 1, 2)
+        row.setColumnStretch(0, 1)
+        row.setColumnStretch(1, 1)
 
         form.addRow("Session", self.review_session_combo)
         form.addRow("Capture", self.review_capture_combo)
@@ -734,16 +849,21 @@ class MainWindow(QMainWindow):
 
         self.review_scene_tag_combo = QComboBox()
         self.review_scene_tag_combo.addItems(DEFAULT_DECISIONS)
+        self.review_scene_tag_combo.currentTextChanged.connect(lambda _text: self._update_review_summary())
         self.review_new_label_combo = QComboBox()
         self.review_new_label_combo.addItems(DEFAULT_CLASSES)
+        self.review_new_label_combo.currentTextChanged.connect(lambda _text: self._update_review_summary())
         self.review_note_input = QTextEdit()
         self.review_note_input.setMinimumHeight(180)
         self.review_note_input.setPlaceholderText("Notes for corrected sample")
         self.review_status_label = QLabel("No capture loaded")
         self.review_status_label.setWordWrap(True)
+        self.review_box_count_label = QLabel("Boxes: 0")
+        self.review_box_count_label.setStyleSheet("font-weight: 700; color: #1e3a5f;")
 
         form.addRow("Scene Tag", self.review_scene_tag_combo)
         form.addRow("Draw Label", self.review_new_label_combo)
+        form.addRow("Box Count", self.review_box_count_label)
         form.addRow("Notes", self.review_note_input)
         form.addRow("Status", self.review_status_label)
         return box
@@ -755,6 +875,11 @@ class MainWindow(QMainWindow):
         self.review_table = QTableWidget(0, len(TABLE_HEADERS))
         self.review_table.setHorizontalHeaderLabels(TABLE_HEADERS)
         self.review_table.setAlternatingRowColors(True)
+        self.review_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.review_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.review_table.setWordWrap(False)
+        self.review_table.verticalHeader().setVisible(False)
+        self.review_table.verticalHeader().setDefaultSectionSize(38)
         header = self.review_table.horizontalHeader()
         header.setStretchLastSection(True)
         header.setSectionResizeMode(0, QHeaderView.Stretch)
@@ -778,6 +903,8 @@ class MainWindow(QMainWindow):
         button_row.addWidget(remove_button, 0, 1)
         button_row.addWidget(reload_button, 1, 0)
         button_row.addWidget(save_button, 1, 1)
+        button_row.setColumnStretch(0, 1)
+        button_row.setColumnStretch(1, 1)
 
         layout.addWidget(self.review_table, 1)
         layout.addLayout(button_row)
@@ -798,6 +925,12 @@ class MainWindow(QMainWindow):
         open_data.triggered.connect(self.show_data_folder)
         menu.addAction(open_data)
 
+        menu.addSeparator()
+
+        exit_action = QAction("Exit", self)
+        exit_action.triggered.connect(self.close)
+        menu.addAction(exit_action)
+
         help_menu = self.menuBar().addMenu("Help")
         about_action = QAction("About", self)
         about_action.triggered.connect(self.show_about_dialog)
@@ -813,6 +946,16 @@ class MainWindow(QMainWindow):
     def _set_review_status(self, text: str) -> None:
         self.review_status_label.setText(text)
         self.statusBar().showMessage(text, 4000)
+
+    def _update_review_summary(self) -> None:
+        capture_name = self.review_meta_path.name if self.review_meta_path is not None else "No capture selected"
+        scene_tag = self.review_scene_tag_combo.currentText().strip() or "-"
+        draw_label = self.review_new_label_combo.currentText().strip() or "-"
+        box_count = self.review_table.rowCount()
+        self.review_box_count_label.setText(f"Boxes: {box_count}")
+        self.review_summary_label.setText(
+            f"Capture: {capture_name}\nScene Tag: {scene_tag}    Draw Label: {draw_label}    Boxes: {box_count}"
+        )
 
     def _set_process_status(self, text: str) -> None:
         self.process_status_label.setText(text)
@@ -1210,6 +1353,7 @@ class MainWindow(QMainWindow):
         self.review_note_input.setPlainText(str(meta.get("operator_note", "")))
         self._set_review_table(self._preferred_review_detections(meta))
         self._refresh_review_preview()
+        self._update_review_summary()
         self._set_review_status(f"Loaded: {self.review_meta_path.name}")
 
     def _set_review_table(self, detections: list[dict]) -> None:
@@ -1218,6 +1362,7 @@ class MainWindow(QMainWindow):
         for det in detections:
             self._append_review_row(det)
         self.review_table.blockSignals(False)
+        self._update_review_summary()
 
     def _append_review_row(self, det: dict) -> None:
         row = self.review_table.rowCount()
@@ -1259,6 +1404,7 @@ class MainWindow(QMainWindow):
     def _refresh_review_preview(self) -> None:
         detections = [_detection_from_dict(item) for item in self._review_table_detections()]
         self.review_image_label.set_review_content(self.review_frame, detections)
+        self._update_review_summary()
 
     def _review_table_changed(self, _item=None) -> None:
         self._refresh_review_preview()
